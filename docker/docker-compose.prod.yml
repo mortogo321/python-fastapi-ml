@@ -1,0 +1,27 @@
+version: '3.8'
+
+# Production-specific overrides
+services:
+  api-prod:
+    build:
+      context: ..
+      target: production
+    container_name: fastapi-app-prod
+    env_file:
+      - ../.env.production
+    environment:
+      - POSTGRES_SERVER=postgres
+      - OLLAMA_HOST=http://ollama:11434
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G

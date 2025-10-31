@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: fastapi-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-fastapi_ml_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fastapi-network
+
+  # Ollama service for local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: fastapi-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - fastapi-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Remove GPU requirements if not available
+    # Comment out the deploy section above if no GPU
+
+  # FastAPI application - Development
+  api-dev:
+    build:
+      context: ..
+      target: development
+    container_name: fastapi-app-dev
+    env_file:
+      - ../.env.development
+    environment:
+      - POSTGRES_SERVER=postgres
+      - OLLAMA_HOST=http://ollama:11434
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../app:/app/app
+      - ../tests:/app/tests
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - fastapi-network
+    profiles:
+      - development
+
+  # FastAPI application - Production
+  api-prod:
+    build:
+      context: ..
+      target: production
+    container_name: fastapi-app-prod
+    env_file:
+      - ../.env.production
+    environment:
+      - POSTGRES_SERVER=postgres
+      - OLLAMA_HOST=http://ollama:11434
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - fastapi-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  ollama_data:
+
+networks:
+  fastapi-network:
+    driver: bridge

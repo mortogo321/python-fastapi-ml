@@ -1,0 +1,22 @@
+version: '3.8'
+
+# Development-specific overrides
+services:
+  api-dev:
+    build:
+      context: ..
+      target: development
+    container_name: fastapi-app-dev
+    env_file:
+      - ../.env.development
+    environment:
+      - POSTGRES_SERVER=postgres
+      - OLLAMA_HOST=http://ollama:11434
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../app:/app/app
+      - ../tests:/app/tests
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

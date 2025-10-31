@@ -1,0 +1,31 @@
+# Core FastAPI dependencies
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# Database
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+pgvector==0.2.4
+asyncpg==0.29.0
+
+# LLM Integration
+ollama==0.1.6
+langchain==0.1.7
+langchain-community==0.0.20
+
+# Vector operations
+numpy==1.26.4
+sentence-transformers==2.3.1
+
+# Utilities
+python-dotenv==1.0.1
+httpx==0.26.0
+tenacity==8.2.3
+
+# Development
+pytest==8.0.0
+pytest-asyncio==0.23.4
+black==24.1.1
+flake8==7.0.0
