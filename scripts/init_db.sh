@@ -7,6 +7,6 @@ echo "Waiting for PostgreSQL to be ready..."
 sleep 5
 
 echo "Initializing database and creating tables..."
-docker-compose exec api-dev python -m app.db.init_db
+docker compose -f docker/docker-compose.yml --profile development exec api-dev python -m app.db.init_db
 
 echo "Database initialization complete!"

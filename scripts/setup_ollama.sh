@@ -6,13 +6,13 @@ set -e
 echo "Waiting for Ollama to be ready..."
 sleep 5
 
-echo "Pulling llama2 model..."
-docker-compose exec ollama ollama pull llama2
+echo "Pulling llama3.2 model..."
+docker compose -f docker/docker-compose.yml exec ollama ollama pull llama3.2
 
 echo "Pulling embedding model (if available)..."
-docker-compose exec ollama ollama pull nomic-embed-text || echo "Embedding model not available, will use sentence-transformers"
+docker compose -f docker/docker-compose.yml exec ollama ollama pull nomic-embed-text || echo "Embedding model not available, will use sentence-transformers"
 
 echo "Listing available models..."
-docker-compose exec ollama ollama list
+docker compose -f docker/docker-compose.yml exec ollama ollama list
 
 echo "Ollama setup complete!"

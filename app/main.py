@@ -1,29 +1,30 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.logging_config import logger
+
 from app.api.v1.endpoints import router as api_router
-from app.db.init_db import init_db
+from app.api.v1.schemas import HealthCheck
+from app.core.config import get_settings
+from app.core.logging_config import logger
+from app.middleware.error_handler import ErrorHandlerMiddleware
+from app.middleware.rate_limiter import RateLimiterMiddleware
+from app.middleware.request_logger import RequestLoggerMiddleware
+
+settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager for startup and shutdown events."""
-    # Startup
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
+    logger.info("Environment: %s", settings.ENVIRONMENT)
 
-    # Initialize database
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-
+    # Database is initialized via `make init-db` / `python -m app.db.init_db`.
+    # Never fail startup when the DB is not reachable (orchestrators retry).
     yield
 
-    # Shutdown
     logger.info("Shutting down application")
 
 
@@ -36,33 +37,23 @@ app = FastAPI(
 
     This API provides:
 
-    * **Local LLM Integration**: Generate text using Ollama (llama2)
+    * **Local LLM Integration**: Generate text using Ollama
     * **Vector Search**: Store and search documents using semantic similarity
     * **PostgreSQL + pgvector**: Efficient vector storage and retrieval
     * **Automatic Embeddings**: Generate embeddings for documents automatically
 
     ### Features
 
-    - 🤖 Local LLM text generation
-    - 🔍 Semantic document search
-    - 📝 Document management with CRUD operations
-    - 💾 Vector embeddings storage
-    - 🏥 Health check endpoints
-
-    ### Quick Start
-
-    1. Check health: `GET /api/v1/health`
-    2. Create a document: `POST /api/v1/documents`
-    3. Search documents: `POST /api/v1/documents/search`
-    4. Generate text: `POST /api/v1/llm/generate`
+    - Local LLM text generation
+    - Semantic document search
+    - Document management with CRUD operations
+    - Vector embeddings storage
+    - Health check endpoints
     """,
     summary="FastAPI ML Demo API",
-    version=settings.APP_VERSION,
-    terms_of_service="https://example.com/terms/",
     contact={
         "name": "API Support",
-        "url": "https://example.com/support",
-        "email": "support@example.com",
+        "url": "https://github.com/mortogo321/python-fastapi-ml",
     },
     license_info={
         "name": "MIT License",
@@ -79,40 +70,52 @@ app = FastAPI(
         },
         {
             "name": "Documents",
-            "description": "Document management with automatic vector embeddings and semantic search",
+            "description": "Document management with vector embeddings and semantic search",
         },
     ],
     lifespan=lifespan,
-    docs_url="/docs",  # Swagger UI
-    redoc_url="/redoc",  # ReDoc
-    openapi_url="/openapi.json",  # OpenAPI schema
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
-# Configure CORS
+# NOTE: wildcard origins cannot be combined with credentials — keep
+# allow_credentials=False while allowing all origins for local demo use.
+# Set explicit origins via reverse proxy in production.
+_cors_origins = settings.CORS_ORIGINS
+_cors_credentials = True
+if "*" in _cors_origins:
+    _cors_credentials = False
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggerMiddleware)
+app.add_middleware(ErrorHandlerMiddleware)
+# Rate limit is enforced from settings at request time via app.state;
+# default 60/min keeps the middleware stateless at import time.
+app.add_middleware(RateLimiterMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
 
 
+@app.get("/api/health", response_model=HealthCheck, tags=["Health"])
+async def api_health() -> HealthCheck:
+    """Top-level health alias (without version prefix, for Docker/CI probes)."""
+    return HealthCheck(
+        status="healthy",
+        environment=settings.ENVIRONMENT,
+        version=settings.APP_VERSION,
+    )
+
+
 @app.get("/", tags=["Root"])
-async def root():
-    """
-    ## Root Endpoint
-
-    Returns basic API information and links to documentation.
-
-    **Available Documentation:**
-    - Swagger UI: `/docs`
-    - ReDoc: `/redoc`
-    - OpenAPI JSON: `/openapi.json`
-    """
+async def root() -> dict[str, object]:
+    """Root endpoint with API information and documentation links."""
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
@@ -120,10 +123,10 @@ async def root():
         "documentation": {
             "swagger_ui": "/docs",
             "redoc": "/redoc",
-            "openapi_json": "/openapi.json"
+            "openapi_json": "/openapi.json",
         },
         "health": "/api/v1/health",
-        "api_version": "v1"
+        "api_version": "v1",
     }
 
 
@@ -135,5 +138,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )

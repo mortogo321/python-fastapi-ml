@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+.venv/
 
 # IDE
 .vscode/
@@ -41,19 +42,21 @@ env/
 .git
 .gitignore
 
-# Docker
+# Docker / compose
+docker/
 docker-compose*.yml
 Dockerfile*
 
-# Tests
+# Tests / coverage
+tests/
 .pytest_cache/
 .coverage
 htmlcov/
+.mypy_cache/
+.ruff_cache/
 
-# Documentation
+# Docs / OS
 *.md
 docs/
-
-# OS
 .DS_Store
 Thumbs.db

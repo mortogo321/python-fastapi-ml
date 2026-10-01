@@ -1,17 +1,17 @@
 import logging
 import sys
-from app.core.config import settings
+
+from app.core.config import get_settings
 
 
-def setup_logging():
+def setup_logging() -> logging.Logger:
     """Configure application logging."""
+    settings = get_settings()
 
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
     # Set specific loggers

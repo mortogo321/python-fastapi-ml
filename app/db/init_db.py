@@ -1,23 +1,22 @@
 from sqlalchemy import text
-from app.db.base import engine, Base
+
 from app.core.logging_config import logger
+from app.db.base import Base, engine
 
 
-def init_db():
+def init_db() -> None:
     """Initialize database with pgvector extension and create tables."""
     try:
-        # Enable pgvector extension
         with engine.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             conn.commit()
             logger.info("pgvector extension enabled")
 
-        # Create all tables
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
 
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error("Error initializing database: %s", e)
         raise
 
 

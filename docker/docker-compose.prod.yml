@@ -1,11 +1,9 @@
-
-
 # Production-specific overrides
 services:
   api-prod:
     build:
       context: ..
-      target: production
+      dockerfile: Dockerfile
     container_name: fastapi-app-prod
     env_file:
       - ../.env.production
@@ -21,7 +19,7 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 2G
+          memory: 4G
         reservations:
           cpus: '1'
           memory: 1G

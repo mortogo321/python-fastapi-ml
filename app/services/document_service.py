@@ -1,9 +1,13 @@
-from typing import List, Optional, Dict, Any
-from sqlalchemy import select, text
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import Row, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.core.logging_config import logger
 from app.models.document import Document
 from app.services.embedding_service import embedding_service
-from app.core.logging_config import logger
 
 
 class DocumentService:
@@ -14,75 +18,68 @@ class DocumentService:
         db: AsyncSession,
         title: str,
         content: str,
-        metadata: Optional[str] = None
+        metadata: str | None = None,
     ) -> Document:
         """Create a new document with embeddings."""
+        settings = get_settings()
+        if len(content) > settings.MAX_CONTENT_CHARS:
+            raise ValueError(
+                f"Content too long: {len(content)} chars > {settings.MAX_CONTENT_CHARS} max."
+            )
         try:
-            # Generate embedding
             embedding = embedding_service.generate_embedding(content)
 
-            # Create document
             document = Document(
                 title=title,
                 content=content,
                 embedding=embedding,
-                metadata=metadata
+                metadata=metadata,
             )
 
             db.add(document)
             await db.commit()
             await db.refresh(document)
 
-            logger.info(f"Created document: {document.id}")
+            logger.info("Created document: %s", document.id)
             return document
 
         except Exception as e:
-            logger.error(f"Error creating document: {e}")
+            logger.error("Error creating document: %s", e)
             await db.rollback()
             raise
 
-    async def get_document(self, db: AsyncSession, document_id: int) -> Optional[Document]:
+    async def get_document(self, db: AsyncSession, document_id: int) -> Document | None:
         """Get a document by ID."""
         try:
-            result = await db.execute(
-                select(Document).where(Document.id == document_id)
-            )
-            return result.scalar_one_or_none()
+            result = await db.execute(select(Document).where(Document.id == document_id))
+            value: Document | None = result.scalar_one_or_none()
+            return value
         except Exception as e:
-            logger.error(f"Error getting document: {e}")
+            logger.error("Error getting document: %s", e)
             raise
 
     async def list_documents(
-        self,
-        db: AsyncSession,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[Document]:
+        self, db: AsyncSession, skip: int = 0, limit: int = 100
+    ) -> Sequence[Document]:
         """List all documents with pagination."""
         try:
             result = await db.execute(
-                select(Document)
-                .offset(skip)
-                .limit(limit)
-                .order_by(Document.created_at.desc())
+                select(Document).offset(skip).limit(limit).order_by(Document.created_at.desc())
             )
-            return result.scalars().all()
+            values: Sequence[Document] = result.scalars().all()
+            return values
         except Exception as e:
-            logger.error(f"Error listing documents: {e}")
+            logger.error("Error listing documents: %s", e)
             raise
 
     async def search_similar_documents(
-        self,
-        db: AsyncSession,
-        query: str,
-        limit: int = 5
-    ) -> List[Dict[str, Any]]:
+        self, db: AsyncSession, query: str, limit: int = 5
+    ) -> list[dict[str, Any]]:
         """Search for similar documents using vector similarity."""
         try:
-            # Generate embedding for query
             query_embedding = embedding_service.generate_embedding(query)
+            vector_literal = "[" + ",".join(str(float(x)) for x in query_embedding) + "]"
 
-            # Perform vector similarity search
             sql = text("""
                 SELECT
                     id,
@@ -97,26 +94,26 @@ class DocumentService:
 
             result = await db.execute(
                 sql,
-                {
-                    "query_embedding": str(query_embedding),
-                    "limit": limit
-                }
+                {"query_embedding": vector_literal, "limit": limit},
             )
 
-            documents = []
+            documents: list[dict[str, Any]] = []
+            row: Row[Any]
             for row in result:
-                documents.append({
-                    "id": row.id,
-                    "title": row.title,
-                    "content": row.content,
-                    "metadata": row.metadata,
-                    "similarity": float(row.similarity)
-                })
+                documents.append(
+                    {
+                        "id": row.id,
+                        "title": row.title,
+                        "content": row.content,
+                        "metadata": row.metadata,
+                        "similarity": float(row.similarity),
+                    }
+                )
 
             return documents
 
         except Exception as e:
-            logger.error(f"Error searching documents: {e}")
+            logger.error("Error searching documents: %s", e)
             raise
 
     async def delete_document(self, db: AsyncSession, document_id: int) -> bool:
@@ -126,11 +123,11 @@ class DocumentService:
             if document:
                 await db.delete(document)
                 await db.commit()
-                logger.info(f"Deleted document: {document_id}")
+                logger.info("Deleted document: %s", document_id)
                 return True
             return False
         except Exception as e:
-            logger.error(f"Error deleting document: {e}")
+            logger.error("Error deleting document: %s", e)
             await db.rollback()
             raise
 
