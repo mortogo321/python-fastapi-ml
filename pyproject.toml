@@ -16,7 +16,7 @@ dependencies = [
   "pgvector==0.5.0",
   "asyncpg==0.31.0",
   "ollama==0.6.3",
-  "numpy==2.5.3",
+  "numpy==2.5.4",
   "sentence-transformers==6.1.0",
   "python-dotenv==1.2.3",
   "httpx==0.28.1",
